@@ -92,7 +92,7 @@ public class VehicleDaoImpl implements VehicleDao {
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
 
-            ps.setString(1, type.name());
+            ps.setObject(1, type.name(), Types.OTHER);
 
             try (ResultSet rs = ps.executeQuery()) {
 
