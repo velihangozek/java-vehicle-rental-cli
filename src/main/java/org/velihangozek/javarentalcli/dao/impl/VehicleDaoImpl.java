@@ -25,7 +25,7 @@ public class VehicleDaoImpl implements VehicleDao {
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 
-            ps.setString(1, v.getType().name());
+            ps.setObject(1, v.getType().name(), Types.OTHER);
 
             ps.setString(2, v.getBrand());
             ps.setString(3, v.getModel());
