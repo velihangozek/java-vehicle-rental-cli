@@ -19,6 +19,7 @@ import java.util.Scanner;
 
 public class VeloRentalMain {
 
+    private static final int PAGE_SIZE = 5;
     private static final Scanner scan = new Scanner(System.in);
     private static final UserService userService = new UserServiceImpl();
     private static final VehicleService vehicleService = new VehicleServiceImpl();
@@ -159,7 +160,8 @@ public class VeloRentalMain {
     private static void listAllVehicles() {
         try {
             List<Vehicle> all = vehicleService.listAll();
-            all.forEach(System.out::println);
+            // all.forEach(System.out::println);
+            paginateVehicles(all);
         } catch (Exception e) {
             System.err.println("Error listing vehicles: " + e.getMessage());
         }
@@ -169,8 +171,10 @@ public class VeloRentalMain {
         try {
             System.out.print("Type to filter (CAR/HELICOPTER/MOTORCYCLE): ");
             VehicleType type = VehicleType.valueOf(scan.nextLine().toUpperCase());
-            vehicleService.listByType(type)
-                    .forEach(System.out::println);
+            List<Vehicle> byType = vehicleService.listByType(type);
+//            vehicleService.listByType(type)
+//                    .forEach(System.out::println);
+            paginateVehicles(byType);
         } catch (Exception e) {
             System.err.println("Error filtering: " + e.getMessage());
         }
@@ -199,6 +203,39 @@ public class VeloRentalMain {
                     .forEach(System.out::println);
         } catch (Exception e) {
             System.err.println("Error listing rentals: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Paginate any list of Vehicles in the console.
+     */
+    private static void paginateVehicles(List<Vehicle> vehicles) {
+        if (vehicles.isEmpty()) {
+            System.out.println("No vehicles found.");
+            return;
+        }
+        int total = vehicles.size();
+        int pages = (total + PAGE_SIZE - 1) / PAGE_SIZE;
+        int current = 0;
+
+        while (true) {
+            int start = current * PAGE_SIZE;
+            int end = Math.min(start + PAGE_SIZE, total);
+            System.out.printf("-- Vehicles %d–%d of %d --%n", start + 1, end, total);
+            vehicles.subList(start, end).forEach(System.out::println);
+
+            // Menu
+            System.out.printf("[n]ext page (%d/%d), [p]revious, [x]exit: ", current + 1, pages);
+            String choice = scan.nextLine().trim().toLowerCase();
+            if ("n".equals(choice) && current < pages - 1) {
+                current++;
+            } else if ("p".equals(choice) && current > 0) {
+                current--;
+            } else if ("x".equals(choice)) {
+                break;
+            } else {
+                System.out.println("Invalid or no more pages.");
+            }
         }
     }
 }
