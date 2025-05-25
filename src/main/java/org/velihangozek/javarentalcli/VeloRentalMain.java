@@ -1,6 +1,10 @@
 package org.velihangozek.javarentalcli;
 
+import org.velihangozek.javarentalcli.exception.VeloAuthenticationException;
+import org.velihangozek.javarentalcli.exception.VeloBusinessRuleException;
+import org.velihangozek.javarentalcli.exception.VeloDataAccessException;
 import org.velihangozek.javarentalcli.model.Rental;
+import org.velihangozek.javarentalcli.model.RentalDetail;
 import org.velihangozek.javarentalcli.model.User;
 import org.velihangozek.javarentalcli.model.Vehicle;
 import org.velihangozek.javarentalcli.model.enums.PeriodType;
@@ -13,6 +17,7 @@ import org.velihangozek.javarentalcli.service.impl.UserServiceImpl;
 import org.velihangozek.javarentalcli.service.impl.VehicleServiceImpl;
 
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.Scanner;
@@ -25,7 +30,7 @@ public class VeloRentalMain {
     private static final VehicleService vehicleService = new VehicleServiceImpl();
     private static final RentalService rentalService = new RentalServiceImpl();
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
 
         while (true) {
 
@@ -35,11 +40,18 @@ public class VeloRentalMain {
             System.out.println("0) Exit");
             System.out.print("\n> ");
 
-            switch (scan.nextLine()) {
+            String choice = scan.nextLine();
+            switch (choice) {
                 case "1" -> doRegister();
                 case "2" -> {
-                    Optional<User> optUser = doLogin();
-                    optUser.ifPresent(VeloRentalMain::menuFor);
+                    try {
+                        User u = doLogin();
+                        menuFor(u);
+                    } catch (VeloAuthenticationException ex) {
+                        System.err.println("Login failed: " + ex.getMessage());
+                    } catch (VeloDataAccessException dae) {
+                        System.err.println("Database error: " + dae.getMessage());
+                    }
                 }
                 case "0" -> {
                     System.out.println("Goodbye!");
@@ -50,33 +62,39 @@ public class VeloRentalMain {
         }
     }
 
-    private static void doRegister() throws Exception {
+    private static void doRegister() {
+        try {
+            System.out.print("Email: ");
+            String email = scan.nextLine();
+            System.out.print("Password: ");
+            String pw = scan.nextLine();
+            System.out.print("Role (ADMIN/CUSTOMER): ");
+            String role = scan.nextLine().toUpperCase();
+            System.out.print("Birthdate (YYYY-MM-DD): ");
+            LocalDate bd = LocalDate.parse(scan.nextLine());
+            System.out.print("Corporate? (true/false): ");
+            boolean corp = Boolean.parseBoolean(scan.nextLine());
 
-        System.out.print("Email: ");
-        String email = scan.nextLine();
-        System.out.print("Password: ");
-        String pw = scan.nextLine();
-        System.out.print("Role (ADMIN/CUSTOMER): ");
-        String role = scan.nextLine().toUpperCase();
-        System.out.print("Birthdate (YYYY-MM-DD): ");
-        LocalDate bd = LocalDate.parse(scan.nextLine());
-        System.out.print("Corporate? (true/false): ");
-        boolean corp = Boolean.parseBoolean(scan.nextLine());
+            User u = userService.register(email, pw, role, bd, corp);
+            System.out.println("Registered: " + u);
+        } catch (VeloBusinessRuleException bre) {
+            System.err.println("Registration error: " + bre.getMessage());
+        } catch (VeloDataAccessException dae) {
+            System.err.println("Database error: " + dae.getMessage());
+        }
 
-        User u = userService.register(email, pw, role, bd, corp);
-        System.out.println("Registered: " + u);
     }
 
-    private static Optional<User> doLogin() throws Exception {
+    private static User doLogin() throws VeloAuthenticationException {
 
         System.out.print("Email: ");
         String email = scan.nextLine();
         System.out.print("Password: ");
         String pw = scan.nextLine();
 
-        Optional<User> opt = userService.login(email, pw);
-        System.out.println(opt.isPresent() ? "Login OK" : "Login failed");
-        return opt;
+        User u = userService.login(email, pw);
+        System.out.println("Login OK");
+        return u;
     }
 
     private static void menuFor(User u) {
@@ -89,7 +107,7 @@ public class VeloRentalMain {
         }
     }
 
-    private static void adminMenu() throws Exception {
+    private static void adminMenu() {
         while (true) {
             System.out.println("\n--- Admin Menu ---\n");
             System.out.println("1) Add vehicle");
@@ -107,20 +125,22 @@ public class VeloRentalMain {
         }
     }
 
-    private static void customerMenu(User u) throws Exception {
+    private static void customerMenu(User u) {
         while (true) {
             System.out.println("\n--- Customer Menu ---\n");
             System.out.println("1) List all vehicles");
             System.out.println("2) Filter by type");
-            System.out.println("3) Rent vehicle");
-            System.out.println("4) My rentals");
+            System.out.println("3) Search vehicles");
+            System.out.println("4) Rent vehicle");
+            System.out.println("5) My rentals");
             System.out.println("0) Logout");
             System.out.print("> ");
             switch (scan.nextLine()) {
                 case "1" -> listAllVehicles();
                 case "2" -> filterByType();
-                case "3" -> rentVehicle(u);
-                case "4" -> listRentals(u);
+                case "3" -> searchVehicles();
+                case "4" -> rentVehicle(u);
+                case "5" -> listRentals(u);
                 case "0" -> {
                     return;
                 }
@@ -151,8 +171,10 @@ public class VeloRentalMain {
 
             Vehicle v = vehicleService.addVehicle(type, brand, model, price, rh, rd, rw, rm);
             System.out.println("Added vehicle: " + v);
-        } catch (Exception e) {
-            System.err.println("Failed to add vehicle: " + e.getMessage());
+        } catch (VeloBusinessRuleException bre) {
+            System.err.println("Cannot add: " + bre.getMessage());
+        } catch (VeloDataAccessException dae) {
+            System.err.println("Database error: " + dae.getMessage());
         }
     }
 
@@ -162,47 +184,79 @@ public class VeloRentalMain {
             List<Vehicle> all = vehicleService.listAll();
             // all.forEach(System.out::println);
             paginateVehicles(all);
-        } catch (Exception e) {
-            System.err.println("Error listing vehicles: " + e.getMessage());
+        } catch (VeloBusinessRuleException bre) {
+            System.err.println("Cannot list: " + bre.getMessage());
+        } catch (VeloDataAccessException dae) {
+            System.err.println("Database error: " + dae.getMessage());
         }
     }
 
     private static void filterByType() {
         try {
             System.out.print("Type to filter (CAR/HELICOPTER/MOTORCYCLE): ");
-            VehicleType type = VehicleType.valueOf(scan.nextLine().toUpperCase());
+            String raw = scan.nextLine().trim();
+            VehicleType type = parseEnum(VehicleType.class, raw);
             List<Vehicle> byType = vehicleService.listByType(type);
-//            vehicleService.listByType(type)
-//                    .forEach(System.out::println);
             paginateVehicles(byType);
-        } catch (Exception e) {
-            System.err.println("Error filtering: " + e.getMessage());
+        } catch (VeloBusinessRuleException bre) {
+            System.err.println("Cannot filter: " + bre.getMessage());
+        } catch (VeloDataAccessException dae) {
+            System.err.println("Database error: " + dae.getMessage());
         }
     }
+
+    private static void searchVehicles() {
+        System.out.print("Enter keyword to search (brand/model): ");
+        String keyword = scan.nextLine().trim();
+        try {
+            List<Vehicle> results = vehicleService.search(keyword);
+            paginateVehicles(results);
+        } catch (VeloBusinessRuleException bre) {
+            System.err.println("Cannot search: " + bre.getMessage());
+        } catch (VeloDataAccessException dae) {
+            System.err.println("Database error: " + dae.getMessage());
+        }
+    }
+
 
     // Customer helper
     private static void rentVehicle(User u) {
         try {
             System.out.print("Vehicle ID: ");
             int vid = Integer.parseInt(scan.nextLine());
+
             System.out.print("Period (HOURLY/DAILY/WEEKLY/MONTHLY): ");
-            PeriodType p = PeriodType.valueOf(scan.nextLine().toUpperCase());
+            PeriodType period = parseEnum(PeriodType.class, scan.nextLine());
+
             System.out.print("Quantity: ");
             int qty = Integer.parseInt(scan.nextLine());
 
-            Rental r = rentalService.rent(u, vid, p, qty);
-            System.out.println("Rental created: " + r);
-        } catch (Exception e) {
-            System.err.println("Failed to rent: " + e.getMessage());
+            Rental r = rentalService.rent(u, vid, period, qty);
+            var detail = rentalService.getFullDetail(r.getId());
+            System.out.println("Rental created: " + detail);
+
+        } catch (VeloBusinessRuleException bre) {
+            // catches both bad enum *and* business‐rule errors
+            System.err.println("Cannot rent: " + bre.getMessage());
+        } catch (VeloDataAccessException dae) {
+            System.err.println("Database error: " + dae.getMessage());
+        } catch (NumberFormatException nfe) {
+            System.err.println("Please enter a valid integer number.");
         }
     }
 
     private static void listRentals(User u) {
         try {
-            rentalService.listRentalsByUser(u)
-                    .forEach(System.out::println);
-        } catch (Exception e) {
-            System.err.println("Error listing rentals: " + e.getMessage());
+            List<RentalDetail> details = rentalService.listRentalDetailsByUser(u);
+            if (details.isEmpty()) {
+                System.out.println("You have no past rentals.");
+            } else {
+                details.forEach(System.out::println);
+            }
+        } catch (VeloBusinessRuleException bre) {
+            System.err.println("Cannot list rentals: " + bre.getMessage());
+        } catch (VeloDataAccessException dae) {
+            System.err.println("Database error: " + dae.getMessage());
         }
     }
 
@@ -222,7 +276,33 @@ public class VeloRentalMain {
             int start = current * PAGE_SIZE;
             int end = Math.min(start + PAGE_SIZE, total);
             System.out.printf("-- Vehicles %d–%d of %d --%n", start + 1, end, total);
-            vehicles.subList(start, end).forEach(System.out::println);
+            //vehicles.subList(start, end).forEach(System.out::println);
+
+            System.out.printf("%-4s %-12s %-15s %-15s %8s %8s %8s %10s %12s %10s%n",
+                    "ID", "Type", "Brand", "Model",
+                    "Hourly", "Daily", "Weekly", "Monthly",
+                    "Purchase", "Deposit"
+            );
+            System.out.println("------------------------------------------------------------------------------------------------");
+            for (Vehicle v : vehicles.subList(start, end)) {
+                // compute deposit only for purchasePrice > 2M
+                String depoStr = v.getPurchasePrice() > 2_000_000
+                        ? String.format("%.2f", v.getPurchasePrice() * 0.10)
+                        : "-";
+
+                System.out.printf("%-4d %-12s %-15s %-15s %8.2f %8.2f %8.2f %10.2f %12d %10s%n",
+                        v.getId(),
+                        v.getType(),
+                        v.getBrand(),
+                        v.getModel(),
+                        v.getRateHourly(),
+                        v.getRateDaily(),
+                        v.getRateWeekly(),
+                        v.getRateMonthly(),
+                        v.getPurchasePrice(),
+                        depoStr
+                );
+            }
 
             // Menu
             System.out.printf("[n]ext page (%d/%d), [p]revious, [x]exit: ", current + 1, pages);
@@ -236,6 +316,18 @@ public class VeloRentalMain {
             } else {
                 System.out.println("Invalid or no more pages.");
             }
+        }
+    }
+
+    private static <E extends Enum<E>> E parseEnum(Class<E> enumClass, String raw) {
+        try {
+            return Enum.valueOf(enumClass, raw.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new VeloBusinessRuleException(
+                    "Invalid " + enumClass.getSimpleName() +
+                            " \"" + raw + "\". Valid values: " +
+                            Arrays.toString(enumClass.getEnumConstants())
+            );
         }
     }
 }
