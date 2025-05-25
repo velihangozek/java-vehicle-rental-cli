@@ -1,8 +1,11 @@
 package org.velihangozek.javarentalcli.util;
 
+import org.velihangozek.javarentalcli.exception.VeloDataAccessException;
+
 import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.SQLException;
 import java.util.Properties;
 
 public class DBConnection {
@@ -23,9 +26,14 @@ public class DBConnection {
         }
     }
 
-    private DBConnection() { }
+    private DBConnection() {
+    }
 
-    public static Connection getConnection() throws Exception {
-        return DriverManager.getConnection(url, username, password);
+    public static Connection getConnection() {
+        try {
+            return DriverManager.getConnection(url, username, password);
+        } catch (SQLException e) {
+            throw new VeloDataAccessException("Unable to get DB connection", e);
+        }
     }
 }
