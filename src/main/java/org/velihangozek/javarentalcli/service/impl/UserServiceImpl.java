@@ -2,6 +2,7 @@ package org.velihangozek.javarentalcli.service.impl;
 
 import org.velihangozek.javarentalcli.dao.UserDao;
 import org.velihangozek.javarentalcli.dao.impl.UserDaoImpl;
+import org.velihangozek.javarentalcli.exception.VeloAuthenticationException;
 import org.velihangozek.javarentalcli.model.User;
 import org.velihangozek.javarentalcli.service.UserService;
 import org.velihangozek.javarentalcli.util.PasswordUtil;
@@ -17,7 +18,7 @@ public class UserServiceImpl implements UserService {
                          String plainPassword,
                          String role,
                          LocalDate birthdate,
-                         boolean isCorporate) throws Exception {
+                         boolean isCorporate) {
         // 1. Hash password
         String hash = PasswordUtil.hash(plainPassword);
 
@@ -32,8 +33,19 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public Optional<User> login(String email, String plainPassword) throws Exception {
-        return userDao.findByEmail(email)
-                .filter(u -> u.getPasswordHash().equals(PasswordUtil.hash(plainPassword)));
+    public User login(String email, String plainPassword) throws VeloAuthenticationException {
+        Optional<User> opt;
+        try {
+            opt = userDao.findByEmail(email);
+        } catch (Exception e) {
+            // something went wrong at the persistence layer
+            throw new VeloAuthenticationException("Authentication service error: " + e.getMessage());
+        }
+
+        // now handle invalid credentials
+        return opt
+                .filter(u -> u.getPasswordHash().equals(PasswordUtil.hash(plainPassword)))
+                .orElseThrow(() -> new VeloAuthenticationException("Invalid email or password"));
+
     }
 }
