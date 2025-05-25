@@ -1,6 +1,7 @@
 package org.velihangozek.javarentalcli.dao.impl;
 
 import org.velihangozek.javarentalcli.dao.UserDao;
+import org.velihangozek.javarentalcli.exception.VeloDataAccessException;
 import org.velihangozek.javarentalcli.model.User;
 import org.velihangozek.javarentalcli.util.DBConnection;
 
@@ -13,7 +14,7 @@ import java.util.Optional;
 public class UserDaoImpl implements UserDao {
 
     @Override
-    public int save(User user) throws Exception {
+    public int save(User user) {
 
         String sql = """
                 INSERT INTO users (email, password_hash, role, birthdate, is_corporate)
@@ -41,14 +42,16 @@ public class UserDaoImpl implements UserDao {
                 if (keys.next()) {
                     return keys.getInt(1);
                 } else {
-                    throw new SQLException("User insert failed, no ID obtained.");
+                    throw new VeloDataAccessException("User insert failed, no ID obtained.", null);
                 }
             }
+        } catch (SQLException e) {
+            throw new VeloDataAccessException("User insert failed.", e);
         }
     }
 
     @Override
-    public Optional<User> findById(int id) throws Exception {
+    public Optional<User> findById(int id) {
 
         String sql = "SELECT * FROM users WHERE id = ?";
 
@@ -62,11 +65,13 @@ public class UserDaoImpl implements UserDao {
                 return rs.next() ? Optional.of(mapRow(rs)) : Optional.empty();
 
             }
+        } catch (SQLException e) {
+            throw new VeloDataAccessException("User findById failed.", e);
         }
     }
 
     @Override
-    public Optional<User> findByEmail(String email) throws Exception {
+    public Optional<User> findByEmail(String email) {
 
         String sql = "SELECT * FROM users WHERE email = ?";
 
@@ -80,11 +85,13 @@ public class UserDaoImpl implements UserDao {
                 return rs.next() ? Optional.of(mapRow(rs)) : Optional.empty();
 
             }
+        } catch (SQLException e) {
+            throw new VeloDataAccessException("User findByEmail failed.", e);
         }
     }
 
     @Override
-    public List<User> findAll() throws Exception {
+    public List<User> findAll() {
 
         String sql = "SELECT * FROM users ORDER BY id";
 
@@ -98,12 +105,14 @@ public class UserDaoImpl implements UserDao {
                 list.add(mapRow(rs));
             }
 
+        } catch (SQLException e) {
+            throw new VeloDataAccessException("User findAll failed.", e);
         }
         return list;
     }
 
     @Override
-    public boolean update(User user) throws Exception {
+    public boolean update(User user) {
 
         String sql = """
                 UPDATE users
@@ -128,11 +137,13 @@ public class UserDaoImpl implements UserDao {
             ps.setInt(6, user.getId());
 
             return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            throw new VeloDataAccessException("User update failed.", e);
         }
     }
 
     @Override
-    public boolean delete(int id) throws Exception {
+    public boolean delete(int id) {
 
         String sql = "DELETE FROM users WHERE id = ?";
 
@@ -143,25 +154,32 @@ public class UserDaoImpl implements UserDao {
 
             return ps.executeUpdate() > 0;
 
+        } catch (SQLException e) {
+            throw new VeloDataAccessException("User delete failed.", e);
         }
     }
 
-    private User mapRow(ResultSet rs) throws SQLException {
+    private User mapRow(ResultSet rs) {
 
-        User u = new User();
+        try {
+            User u = new User();
 
-        u.setId(rs.getInt("id"));
-        u.setEmail(rs.getString("email"));
-        u.setPasswordHash(rs.getString("password_hash"));
-        u.setRole(rs.getString("role"));
-        Date bd = rs.getDate("birthdate");
+            u.setId(rs.getInt("id"));
+            u.setEmail(rs.getString("email"));
+            u.setPasswordHash(rs.getString("password_hash"));
+            u.setRole(rs.getString("role"));
+            Date bd = rs.getDate("birthdate");
 
-        if (bd != null) {
-            u.setBirthdate(bd.toLocalDate());
+            if (bd != null) {
+                u.setBirthdate(bd.toLocalDate());
+            }
+
+            u.setCorporate(rs.getBoolean("is_corporate"));
+
+            return u;
+        } catch (SQLException e) {
+            throw new VeloDataAccessException("User mapRow failed.", e);
         }
 
-        u.setCorporate(rs.getBoolean("is_corporate"));
-
-        return u;
     }
 }
